@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "banxico-sie-catalog"
+version = "0.1.0"
+description = "Build versioned catalogs of Banco de México SIE time series."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "IIEG" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pre-commit>=3.7", "pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+banxico-sie-catalog = "banxico_sie_catalog.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/banxico_sie_catalog"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
