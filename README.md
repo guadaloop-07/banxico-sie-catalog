@@ -25,6 +25,20 @@ The command creates `data/catalog.json`, `data/catalog.sqlite`, and a
 timestamped manifest. `data/` is intentionally ignored by Git: snapshots should
 be published as release artifacts or in a dedicated data repository.
 
+## Query a local snapshot
+
+Search the SQLite full-text index without crawling SIE again:
+
+```bash
+banxico-sie-catalog search "tipo de cambio" --database data/catalog.sqlite --limit 10
+banxico-sie-catalog search FIX --sector "Tipos de cambio" --json
+banxico-sie-catalog show SF43718 --database data/catalog.sqlite --json
+```
+
+`search` supports exact filters for `--sector`, `--table`, `--frequency`, and
+`--series-id`. It exits with status 1 when no records match and status 2 when
+the snapshot is missing or cannot be queried.
+
 ## Development
 
 ```bash
