@@ -7,10 +7,33 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .models import Series
+from .validation import (
+    SnapshotValidationError,
+    load_snapshot_records,
+    validate_snapshot,
+    write_validation_report,
+)
 
 
-def write_snapshot(records: list[Series], output_dir: Path) -> None:
+def write_snapshot(
+    records: list[Series], output_dir: Path, previous_snapshot: Path | None = None
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        previous_records = load_snapshot_records(previous_snapshot) if previous_snapshot else None
+    except SnapshotValidationError as error:
+        report = validate_snapshot(records)
+        report["valid"] = False
+        report["errors"] = error.report["errors"]
+        write_validation_report(report, output_dir)
+        raise SnapshotValidationError(report) from error
+    report = validate_snapshot(
+        records, previous_records, str(previous_snapshot) if previous_snapshot else None
+    )
+    write_validation_report(report, output_dir)
+    if not report["valid"]:
+        raise SnapshotValidationError(report)
+
     payload = [asdict(record) for record in records]
     (output_dir / "catalog.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

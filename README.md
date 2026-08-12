@@ -21,9 +21,24 @@ python -m pip install -e '.[dev]'
 banxico-sie-catalog crawl --output-dir data --delay 1
 ```
 
-The command creates `data/catalog.json`, `data/catalog.sqlite`, and a
-timestamped manifest. `data/` is intentionally ignored by Git: snapshots should
-be published as release artifacts or in a dedicated data repository.
+The command creates `data/catalog.json`, `data/catalog.sqlite`, a timestamped
+manifest, and `data/validation-report.json`. `data/` is intentionally ignored
+by Git: snapshots should be published as release artifacts or in a dedicated
+data repository.
+
+Snapshots must have required series metadata, unique IDs, HTTP(S) source URLs,
+and ISO 8601 extraction timestamps. Missing period, frequency, units, or figure
+type is reported as a warning rather than blocking the snapshot. Compare a
+new catalog with a prior JSON snapshot as part of the crawl:
+
+```bash
+banxico-sie-catalog crawl --output-dir data-next --previous-snapshot data/catalog.json
+```
+
+The validation report records additions, removals, and changed metadata fields.
+It ignores `extracted_at`, since a new extraction time alone is not a catalog
+change. If validation fails, only the report is written; the catalog JSON and
+SQLite snapshot are left untouched.
 
 ## Query a local snapshot
 

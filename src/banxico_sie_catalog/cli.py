@@ -7,6 +7,7 @@ from pathlib import Path
 from .catalog import CatalogError, search, show
 from .crawler import SIECrawler
 from .export import write_snapshot
+from .validation import SnapshotValidationError
 
 
 def _positive_integer(value: str) -> int:
@@ -31,6 +32,11 @@ def main() -> int:
     crawl.add_argument("--output-dir", type=Path, default=Path("data"))
     crawl.add_argument("--delay", type=float, default=1.0, help="seconds between uncached requests")
     crawl.add_argument("--limit-sectors", type=int, help="limit sectors; useful for smoke tests")
+    crawl.add_argument(
+        "--previous-snapshot",
+        type=Path,
+        help="catalog JSON snapshot used to report additions, removals, and metadata changes",
+    )
 
     search_parser = subparsers.add_parser("search", help="search a local catalog snapshot")
     search_parser.add_argument("query", help="free-text FTS query")
@@ -50,7 +56,11 @@ def main() -> int:
     args = parser.parse_args()
     if args.command == "crawl":
         records = SIECrawler(delay_seconds=args.delay).crawl(args.limit_sectors)
-        write_snapshot(records, args.output_dir)
+        try:
+            write_snapshot(records, args.output_dir, args.previous_snapshot)
+        except SnapshotValidationError as error:
+            print(error)
+            return 2
         print(f"Wrote {len(records)} series to {args.output_dir}")
         return 0
     try:
