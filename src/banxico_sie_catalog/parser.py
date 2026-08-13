@@ -131,14 +131,17 @@ def parse_series(html: str, table: Table, extracted_at: str) -> list[Series]:
     }
     found: dict[str, Series] = {}
     for series_id, title in candidates:
-        found[series_id] = Series(
-            id=series_id,
-            title=title,
-            sector=table.sector,
-            table_id=table.id,
-            table_title=table.title,
-            source_url=table.url,
-            extracted_at=extracted_at,
-            **metadata,
+        found.setdefault(
+            series_id,
+            Series(
+                id=series_id,
+                title=title,
+                sector=table.sector,
+                table_id=table.id,
+                table_title=table.title,
+                source_url=table.url,
+                extracted_at=extracted_at,
+                **metadata,
+            ),
         )
     return list(found.values())
