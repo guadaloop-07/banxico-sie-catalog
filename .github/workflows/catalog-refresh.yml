@@ -1,0 +1,72 @@
+name: Catalog refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit_sectors:
+        description: Optional sector limit for a smoke refresh; leave empty for the full catalog.
+        required: false
+        type: string
+      delay_seconds:
+        description: Delay between uncached SIE requests.
+        default: "1"
+        required: false
+        type: string
+  schedule:
+    - cron: "17 3 7 * *"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package
+        run: python -m pip install .
+      - name: Download the previous catalog snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts | map(select(.expired | not) | select(.name | startswith("catalog-"))) | sort_by(.created_at) | last | .id // empty')"
+          if [ -n "$artifact_id" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > previous.zip
+            unzip -q previous.zip -d previous
+            echo "PREVIOUS_SNAPSHOT=previous/catalog.json" >> "$GITHUB_ENV"
+          fi
+      - name: Build and validate snapshot
+        env:
+          LIMIT_SECTORS: ${{ inputs.limit_sectors }}
+          DELAY_SECONDS: ${{ inputs.delay_seconds || '1' }}
+        run: |
+          arguments=(crawl --output-dir snapshot --delay "$DELAY_SECONDS" --require-complete)
+          if [ -n "$LIMIT_SECTORS" ]; then
+            arguments+=(--limit-sectors "$LIMIT_SECTORS")
+          fi
+          if [ -n "$PREVIOUS_SNAPSHOT" ]; then
+            arguments+=(--previous-snapshot "$PREVIOUS_SNAPSHOT")
+          fi
+          banxico-sie-catalog "${arguments[@]}"
+      - name: Record workflow provenance
+        run: |
+          printf '%s\n' \
+            "{" \
+            "  \"repository\": \"${GITHUB_REPOSITORY}\"," \
+            "  \"commit\": \"${GITHUB_SHA}\"," \
+            "  \"workflow_run_id\": \"${GITHUB_RUN_ID}\"," \
+            "  \"workflow_run_number\": \"${GITHUB_RUN_NUMBER}\"," \
+            "  \"trigger\": \"${GITHUB_EVENT_NAME}\"" \
+            "}" > snapshot/provenance.json
+      - name: Publish versioned catalog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-${{ github.run_id }}
+          path: snapshot/
+          if-no-files-found: error
+          retention-days: 90

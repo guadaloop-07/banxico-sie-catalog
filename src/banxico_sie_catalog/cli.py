@@ -49,6 +49,11 @@ def main() -> int:
         type=Path,
         help="catalog JSON snapshot used to report additions, removals, and metadata changes",
     )
+    crawl.add_argument(
+        "--require-complete",
+        action="store_true",
+        help="fail without writing a snapshot if any sector or table URL could not be fetched",
+    )
 
     search_parser = subparsers.add_parser("search", help="search a local catalog snapshot")
     search_parser.add_argument("query", help="free-text FTS query")
@@ -77,6 +82,9 @@ def main() -> int:
             print(error)
             return 2
         write_crawl_report(report, args.output_dir)
+        if args.require_complete and report.failed_urls:
+            print("Crawl did not complete; see crawl-report.json for failed URLs.")
+            return 2
         try:
             write_snapshot(records, args.output_dir, args.previous_snapshot)
         except SnapshotValidationError as error:
