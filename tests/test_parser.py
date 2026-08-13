@@ -34,5 +34,17 @@ def test_parse_series_with_table_metadata() -> None:
     assert series[0].units == "Millones de Pesos"
 
 
+def test_parse_series_handles_options_links_and_duplicate_ids() -> None:
+    table = Table("CF200", "Alterno", "Otro sector", "https://example.test/CF200")
+    series = parse_series(
+        (FIXTURES / "table-alternate.html").read_text(), table, "2026-08-10T00:00:00+00:00"
+    )
+    assert [(record.id, record.title) for record in series] == [
+        ("SF123", "Serie por enlace"),
+        ("SP456", "Serie por opción"),
+    ]
+    assert series[1].frequency == "Mensual"
+
+
 def test_decodes_legacy_sie_bytes() -> None:
     assert _decode_html(b"M\xe9xico") == "México"

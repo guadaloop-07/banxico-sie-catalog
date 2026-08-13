@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .catalog import CatalogError, search, show
-from .crawler import SIECrawler
+from .crawler import CrawlError, SIECrawler
 from .export import write_snapshot
+from .report import write_crawl_report
 from .validation import SnapshotValidationError
 
 
@@ -14,6 +16,13 @@ def _positive_integer(value: str) -> int:
     integer = int(value)
     if integer < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
+    return integer
+
+
+def _non_negative_integer(value: str) -> int:
+    integer = int(value)
+    if integer < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
     return integer
 
 
@@ -32,6 +41,9 @@ def main() -> int:
     crawl.add_argument("--output-dir", type=Path, default=Path("data"))
     crawl.add_argument("--delay", type=float, default=1.0, help="seconds between uncached requests")
     crawl.add_argument("--limit-sectors", type=int, help="limit sectors; useful for smoke tests")
+    crawl.add_argument(
+        "--retries", type=_non_negative_integer, default=2, help="retries per failed request"
+    )
     crawl.add_argument(
         "--previous-snapshot",
         type=Path,
@@ -55,13 +67,25 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.command == "crawl":
-        records = SIECrawler(delay_seconds=args.delay).crawl(args.limit_sectors)
+        crawler = SIECrawler(delay_seconds=args.delay, max_retries=args.retries)
+        try:
+            records, report = crawler.crawl_with_report(args.limit_sectors)
+        except CrawlError as error:
+            crawler.report.failed_urls.append(error.failure)
+            crawler.report.finished_at = crawler.report.finished_at or datetime.now(UTC).isoformat()
+            write_crawl_report(crawler.report, args.output_dir)
+            print(error)
+            return 2
+        write_crawl_report(report, args.output_dir)
         try:
             write_snapshot(records, args.output_dir, args.previous_snapshot)
         except SnapshotValidationError as error:
             print(error)
             return 2
-        print(f"Wrote {len(records)} series to {args.output_dir}")
+        print(
+            f"Wrote {len(records)} series to {args.output_dir} "
+            f"({len(report.failed_urls)} failed URLs)"
+        )
         return 0
     try:
         if args.command == "search":

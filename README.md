@@ -22,9 +22,9 @@ banxico-sie-catalog crawl --output-dir data --delay 1
 ```
 
 The command creates `data/catalog.json`, `data/catalog.sqlite`, a timestamped
-manifest, and `data/validation-report.json`. `data/` is intentionally ignored
-by Git: snapshots should be published as release artifacts or in a dedicated
-data repository.
+manifest, `data/validation-report.json`, and `data/crawl-report.json`. `data/`
+is intentionally ignored by Git: snapshots should be published as release
+artifacts or in a dedicated data repository.
 
 Snapshots must have required series metadata, unique IDs, HTTP(S) source URLs,
 and ISO 8601 extraction timestamps. Missing period, frequency, units, or figure
@@ -39,6 +39,12 @@ The validation report records additions, removals, and changed metadata fields.
 It ignores `extracted_at`, since a new extraction time alone is not a catalog
 change. If validation fails, only the report is written; the catalog JSON and
 SQLite snapshot are left untouched.
+
+The crawler retries transient request failures twice with exponential backoff.
+It records fetched pages, parsed series, retries, skipped URLs, and structured
+failed URLs in `crawl-report.json`; a failed sector or table is reported and
+does not prevent other pages from being crawled. Use `--retries 1` to reduce
+the retry count during a smoke test.
 
 ## Query a local snapshot
 
@@ -64,6 +70,17 @@ ruff format --check .
 
 The parser is covered with saved HTML fixtures. When the SIE changes, add the
 new HTML as a fixture before changing parser behaviour.
+
+### Crawler maintenance
+
+The parser supports SIE sector and table links, plus series IDs exposed in
+links, inputs, or options. It normalizes whitespace, retains the first record
+when an ID is repeated in a page, and treats unavailable optional metadata as
+validation warnings. When markup changes, save a sanitized page that captures
+the new layout in `tests/fixtures/`, add a parser assertion for the expected
+IDs and metadata, then update the parser. Review `crawl-report.json` after each
+refresh: failed URLs require investigation before treating the snapshot as a
+complete portal catalog.
 
 ## Data provenance and operating rules
 
