@@ -5,6 +5,7 @@ import json
 import pytest
 
 from banxico_sie_catalog.cli import main
+from banxico_sie_catalog.crawler import CrawlFailure, CrawlReport
 from banxico_sie_catalog.export import write_snapshot
 from banxico_sie_catalog.models import Series
 
@@ -108,3 +109,24 @@ def test_missing_snapshot_is_an_error(capsys, monkeypatch, tmp_path) -> None:
 
     assert main() == 2
     assert f"Catalog snapshot not found: {database}" in capsys.readouterr().out
+
+
+def test_crawl_require_complete_does_not_write_snapshot(capsys, monkeypatch, tmp_path) -> None:
+    class FailedCrawler:
+        def __init__(self, **kwargs) -> None:
+            self.report = CrawlReport(started_at="2026-08-13T00:00:00+00:00")
+
+        def crawl_with_report(self, limit_sectors):
+            self.report.failed_urls = [CrawlFailure("https://example.test", "unavailable", 3)]
+            return [], self.report
+
+    monkeypatch.setattr("banxico_sie_catalog.cli.SIECrawler", FailedCrawler)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["banxico-sie-catalog", "crawl", "--output-dir", str(tmp_path), "--require-complete"],
+    )
+
+    assert main() == 2
+    assert "Crawl did not complete" in capsys.readouterr().out
+    assert (tmp_path / "crawl-report.json").is_file()
+    assert not (tmp_path / "catalog.json").exists()

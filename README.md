@@ -46,6 +46,20 @@ failed URLs in `crawl-report.json`; a failed sector or table is reported and
 does not prevent other pages from being crawled. Use `--retries 1` to reduce
 the retry count during a smoke test.
 
+## Scheduled refreshes and artifact retention
+
+The `Catalog refresh` GitHub Actions workflow runs monthly and can be started
+manually. It runs a complete crawl with `--require-complete`, validates the
+result, compares it with the most recent non-expired catalog artifact when one
+exists, and publishes a uniquely named artifact containing the JSON, SQLite,
+manifest, validation report, crawl report, and workflow provenance. Artifacts
+are retained for 90 days; download a particular workflow run's artifact when a
+consumer needs a reproducible snapshot version.
+
+The refresh refuses to publish a new catalog when crawling or validation fails,
+so the previous successful artifact remains available. Review the validation and
+crawl reports before changing consumers to a newer snapshot.
+
 ## Query a local snapshot
 
 Search the SQLite full-text index without crawling SIE again:
