@@ -74,6 +74,20 @@ banxico-sie-catalog show SF43718 --database data/catalog.sqlite --json
 `--series-id`. It exits with status 1 when no records match and status 2 when
 the snapshot is missing or cannot be queried.
 
+## Validate known series through the API
+
+API enrichment is optional and never changes scraped catalog provenance. Supply
+the API token only through the `BMX_TOKEN` environment variable, then validate
+explicit known IDs in batches of at most 20:
+
+```bash
+export BMX_TOKEN="your-secret-token"
+banxico-sie-catalog enrich SF43718 SF46410 --output data/api-validation.json
+```
+
+The API-only report records returned metadata, invalid IDs, failed batches, and
+its own validation timestamp. It never writes the token to a snapshot or report.
+
 ## Serve a snapshot over MCP
 
 The optional MCP server exposes only the chosen local SQLite snapshot: it never
