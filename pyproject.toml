@@ -16,14 +16,13 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
 ]
-dependencies = ["mcp>=2,<3"]
+dependencies = []
 
 [project.optional-dependencies]
 dev = ["pre-commit>=3.7", "pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
 banxico-sie-catalog = "banxico_sie_catalog.cli:main"
-banxico-sie-catalog-mcp = "banxico_sie_catalog.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/banxico_sie_catalog"]
