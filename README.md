@@ -88,6 +88,22 @@ banxico-sie-catalog enrich SF43718 SF46410 --output data/api-validation.json
 The API-only report records returned metadata, invalid IDs, failed batches, and
 its own validation timestamp. It never writes the token to a snapshot or report.
 
+## Serve a snapshot over MCP
+
+The optional MCP server exposes only the chosen local SQLite snapshot: it never
+crawls SIE and does not use a Banxico token. Install the project, then configure
+an MCP host to run the following command with an absolute snapshot path:
+
+```bash
+banxico-sie-catalog-mcp --database /absolute/path/to/catalog.sqlite
+```
+
+It provides four read-only tools with stable object responses: `search_series`,
+`get_series`, `get_sectors`, and `get_tables`. Every response includes snapshot
+metadata from `manifest.json`; when `provenance.json` is beside the manifest,
+that workflow provenance is included too. Pass `--manifest` when the manifest
+is stored elsewhere.
+
 ## Development
 
 ```bash
