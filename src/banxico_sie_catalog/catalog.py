@@ -79,3 +79,36 @@ def show(database_path: Path, series_id: str) -> dict[str, str | None] | None:
             return dict(row) if row else None
     except sqlite3.Error as error:
         raise CatalogError(f"Could not query catalog snapshot {database_path}: {error}") from error
+
+
+def list_sectors(database_path: Path) -> list[dict[str, str | int]]:
+    """Return catalog sectors with stable aggregate counts."""
+    statement = """
+        SELECT sector AS name, COUNT(DISTINCT table_id) AS table_count, COUNT(*) AS series_count
+        FROM series
+        GROUP BY sector
+        ORDER BY sector
+    """
+    try:
+        with _connect(database_path) as database:
+            return [dict(row) for row in database.execute(statement).fetchall()]
+    except sqlite3.Error as error:
+        raise CatalogError(f"Could not query catalog snapshot {database_path}: {error}") from error
+
+
+def list_tables(database_path: Path, *, sector: str | None = None) -> list[dict[str, str | int]]:
+    """Return catalog tables, optionally limited to one sector."""
+    statement = """
+        SELECT table_id, table_title, sector, COUNT(*) AS series_count
+        FROM series
+    """
+    values: list[str] = []
+    if sector is not None:
+        statement += " WHERE sector = ?"
+        values.append(sector)
+    statement += " GROUP BY table_id, table_title, sector ORDER BY sector, table_id"
+    try:
+        with _connect(database_path) as database:
+            return [dict(row) for row in database.execute(statement, values).fetchall()]
+    except sqlite3.Error as error:
+        raise CatalogError(f"Could not query catalog snapshot {database_path}: {error}") from error
