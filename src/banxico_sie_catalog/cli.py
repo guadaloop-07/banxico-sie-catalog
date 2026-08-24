@@ -5,6 +5,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .api import BanxicoAPIError, SIEAPIClient
 from .catalog import CatalogError, search, show
 from .crawler import CrawlError, SIECrawler
 from .export import write_snapshot
@@ -70,6 +71,15 @@ def main() -> int:
     show_parser.add_argument("--database", type=Path, default=Path("data/catalog.sqlite"))
     show_parser.add_argument("--json", action="store_true", dest="as_json")
 
+    enrich_parser = subparsers.add_parser(
+        "enrich", help="validate known series through the Banxico API"
+    )
+    enrich_parser.add_argument("series_ids", nargs="+", help="one or more known SIE series IDs")
+    enrich_parser.add_argument("--output", type=Path, default=Path("data/api-validation.json"))
+    enrich_parser.add_argument(
+        "--delay", type=float, default=1.0, help="seconds between API batches"
+    )
+
     args = parser.parse_args()
     if args.command == "crawl":
         crawler = SIECrawler(delay_seconds=args.delay, max_retries=args.retries)
@@ -96,6 +106,18 @@ def main() -> int:
         )
         return 0
     try:
+        if args.command == "enrich":
+            if args.delay < 0:
+                parser.error("--delay must be non-negative")
+            report = SIEAPIClient(delay_seconds=args.delay).validate(args.series_ids)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+            print(
+                f"Wrote API validation for {len(report['requested_ids'])} series to {args.output}"
+            )
+            return 0 if not report["failures"] else 2
         if args.command == "search":
             records = search(
                 args.database,
@@ -122,7 +144,7 @@ def main() -> int:
             for field, value in record.items():
                 print(f"{field}: {value}")
         return 0
-    except CatalogError as error:
+    except (BanxicoAPIError, CatalogError) as error:
         print(error)
         return 2
 
