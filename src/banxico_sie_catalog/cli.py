@@ -41,6 +41,9 @@ def main() -> int:
     crawl = subparsers.add_parser("crawl", help="crawl SIE and write a catalog snapshot")
     crawl.add_argument("--output-dir", type=Path, default=Path("data"))
     crawl.add_argument("--delay", type=float, default=1.0, help="seconds between uncached requests")
+    crawl.add_argument(
+        "--timeout", type=float, default=30.0, help="maximum seconds to wait for each SIE request"
+    )
     crawl.add_argument("--limit-sectors", type=int, help="limit sectors; useful for smoke tests")
     crawl.add_argument(
         "--retries", type=_non_negative_integer, default=2, help="retries per failed request"
@@ -82,7 +85,9 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.command == "crawl":
-        crawler = SIECrawler(delay_seconds=args.delay, max_retries=args.retries)
+        crawler = SIECrawler(
+            delay_seconds=args.delay, timeout_seconds=args.timeout, max_retries=args.retries
+        )
         try:
             records, report = crawler.crawl_with_report(args.limit_sectors)
         except CrawlError as error:
