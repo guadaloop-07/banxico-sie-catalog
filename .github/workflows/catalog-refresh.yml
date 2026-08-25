@@ -45,7 +45,7 @@ jobs:
           LIMIT_SECTORS: ${{ inputs.limit_sectors }}
           DELAY_SECONDS: ${{ inputs.delay_seconds || '1' }}
         run: |
-          arguments=(crawl --output-dir snapshot --delay "$DELAY_SECONDS" --require-complete)
+          arguments=(crawl --output-dir snapshot --delay "$DELAY_SECONDS" --timeout 5 --require-complete)
           if [ -n "$LIMIT_SECTORS" ]; then
             arguments+=(--limit-sectors "$LIMIT_SECTORS")
           fi
