@@ -90,6 +90,32 @@ its own validation timestamp. It never writes the token to a snapshot or report.
 
 ## Serve a snapshot over MCP
 
+### Local setup with Python
+
+Create an isolated environment and install the released server version:
+
+```bash
+mkdir banxico-sie-mcp && cd banxico-sie-mcp
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install "git+https://github.com/guadaloop-07/banxico-sie-catalog.git@v0.1.0"
+```
+
+Download and unpack the catalog release (or download the ZIP from the release page in a browser):
+
+```bash
+gh release download v0.1.0 --repo guadaloop-07/banxico-sie-catalog --dir downloads
+unzip downloads/banxico-sie-catalog-v0.1.0-snapshot.zip -d snapshot
+```
+
+Start the local read-only server with the absolute SQLite path. The MCP client should be configured to run this exact command:
+
+```bash
+banxico-sie-catalog-mcp --database "$(pwd)/snapshot/catalog.sqlite"
+```
+
+No Banxico token is needed at runtime: the server only reads the downloaded catalog. Keep the virtual environment and snapshot directory together so upgrading is just a matter of replacing `snapshot/` with a newer validated release.
+
 The optional MCP server exposes only the chosen local SQLite snapshot: it never
 crawls SIE and does not use a Banxico token. Install the project, then configure
 an MCP host to run the following command with an absolute snapshot path:
