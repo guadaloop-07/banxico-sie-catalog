@@ -65,3 +65,77 @@ def test_validate_requires_environment_or_injected_secret(monkeypatch) -> None:
 
     with pytest.raises(BanxicoAPIError, match="BMX_TOKEN is not configured"):
         SIEAPIClient().validate(["SF1"])
+
+
+def test_observation_queries_normalize_api_data_and_keep_the_token_out_of_results() -> None:
+    requests = []
+
+    def opener(request, timeout):
+        requests.append(request)
+        if request.full_url.endswith("/datos/oportuno"):
+            return _Response(
+                {
+                    "bmx": {
+                        "series": [
+                            {
+                                "idSerie": "SF1",
+                                "titulo": "FIX",
+                                "datos": [{"fecha": "26/08/2026", "dato": "18.1234"}],
+                            }
+                        ]
+                    }
+                }
+            )
+        return _Response(
+            {
+                "bmx": {
+                    "series": [
+                        {
+                            "idSerie": "SF1",
+                            "titulo": "FIX",
+                            "datos": [
+                                {"fecha": "01/08/2026", "dato": "18.0"},
+                                {"fecha": "02/08/2026", "dato": "N/E"},
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+
+    client = SIEAPIClient(token="secret", opener=opener)
+    latest = client.latest_observation("SF1")
+    ranged = client.observations("SF1", "2026-08-01", "2026-08-02")
+
+    assert latest["observation"] == {"date": "26/08/2026", "value": "18.1234"}
+    assert ranged["observations"] == [
+        {"date": "01/08/2026", "value": "18.0"},
+        {"date": "02/08/2026", "value": "N/E"},
+    ]
+    assert requests[1].full_url.endswith("/SF1/datos/2026-08-01/2026-08-02")
+    assert "secret" not in str(latest)
+    assert "secret" not in str(ranged)
+
+
+@pytest.mark.parametrize(
+    ("start_date", "end_date", "message"),
+    [
+        ("01-08-2026", "2026-08-02", "start_date must use ISO 8601"),
+        ("2026-08-03", "2026-08-02", "end_date must be on or after"),
+    ],
+)
+def test_observations_reject_invalid_date_ranges(start_date, end_date, message) -> None:
+    with pytest.raises(BanxicoAPIError, match=message):
+        SIEAPIClient(token="secret").observations("SF1", start_date, end_date)
+
+
+@pytest.mark.parametrize(
+    ("method", "arguments"),
+    [
+        ("latest_observation", ("SF1",)),
+        ("observations", ("SF1", "2026-08-01", "2026-08-02")),
+    ],
+)
+def test_observation_queries_require_a_local_token(method, arguments) -> None:
+    with pytest.raises(BanxicoAPIError, match="BMX_TOKEN is not configured"):
+        getattr(SIEAPIClient(token=""), method)(*arguments)

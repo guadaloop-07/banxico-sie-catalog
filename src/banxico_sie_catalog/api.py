@@ -7,7 +7,7 @@ import os
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -37,7 +37,7 @@ def _batches(series_ids: Iterable[str]) -> list[list[str]]:
 
 
 class SIEAPIClient:
-    """Read SIE metadata without exposing the API token in files or output."""
+    """Read SIE metadata and observations without exposing the API token."""
 
     def __init__(
         self,
@@ -82,6 +82,43 @@ class SIEAPIClient:
                 self.sleep(self.delay_seconds)
         return report
 
+    def latest_observation(self, series_id: str) -> dict[str, object]:
+        """Return the latest published observation for one SIE series."""
+        if not self.token:
+            raise BanxicoAPIError("BMX_TOKEN is not configured; set it in the environment.")
+        series = self._fetch_batch([f"{series_id}/datos/oportuno"])
+        if len(series) != 1:
+            raise BanxicoAPIError(f"API response contained invalid data for series {series_id}")
+        observations = _observations(series[0], series_id)
+        if not observations:
+            raise BanxicoAPIError(f"SIE returned no latest observation for series {series_id}")
+        return {
+            "queried_at": datetime.now(UTC).isoformat(),
+            "series_id": series_id,
+            "api_title": series[0].get("titulo"),
+            "observation": observations[0],
+        }
+
+    def observations(self, series_id: str, start_date: str, end_date: str) -> dict[str, object]:
+        """Return SIE observations for an inclusive ISO 8601 date range."""
+        if not self.token:
+            raise BanxicoAPIError("BMX_TOKEN is not configured; set it in the environment.")
+        start = _iso_date(start_date, "start_date")
+        end = _iso_date(end_date, "end_date")
+        if end < start:
+            raise BanxicoAPIError("end_date must be on or after start_date")
+        series = self._fetch_batch([f"{series_id}/datos/{start}/{end}"])
+        if len(series) != 1:
+            raise BanxicoAPIError(f"API response contained invalid data for series {series_id}")
+        return {
+            "queried_at": datetime.now(UTC).isoformat(),
+            "series_id": series_id,
+            "api_title": series[0].get("titulo"),
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "observations": _observations(series[0], series_id),
+        }
+
     def _fetch_batch(self, series_ids: list[str]) -> list[dict[str, object]]:
         request = Request(
             f"{API_BASE_URL}/{','.join(series_ids)}",
@@ -111,3 +148,19 @@ class SIEAPIClient:
         if not isinstance(series, list) or not all(isinstance(item, dict) for item in series):
             raise BanxicoAPIError("API response contained invalid series metadata")
         return series
+
+
+def _iso_date(value: str, field_name: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as error:
+        raise BanxicoAPIError(f"{field_name} must use ISO 8601 format YYYY-MM-DD") from error
+
+
+def _observations(series: dict[str, object], series_id: str) -> list[dict[str, object]]:
+    observations = series.get("datos")
+    if not isinstance(observations, list) or not all(
+        isinstance(item, dict) for item in observations
+    ):
+        raise BanxicoAPIError(f"API response did not contain observations for series {series_id}")
+    return [{"date": item.get("fecha"), "value": item.get("dato")} for item in observations]
