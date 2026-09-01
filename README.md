@@ -108,11 +108,14 @@ gh release download v0.1.0 --repo guadaloop-07/banxico-sie-catalog --dir downloa
 unzip downloads/banxico-sie-catalog-v0.1.0-snapshot.zip -d snapshot
 ```
 
-Start the local read-only server with the absolute SQLite path. The MCP client should be configured to run this exact command:
+Start the local read-only server with the absolute SQLite path:
 
 ```bash
 banxico-sie-catalog-mcp --database "$(pwd)/snapshot/catalog.sqlite"
 ```
+
+For a copy-paste Codex configuration, including connection validation and the
+optional live-observations setup, see [Connect the local catalog to Codex](docs/codex-mcp.md).
 
 No Banxico token is needed at runtime: the server only reads the downloaded catalog. Keep the virtual environment and snapshot directory together so upgrading is just a matter of replacing `snapshot/` with a newer validated release.
 
