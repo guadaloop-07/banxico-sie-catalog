@@ -9,6 +9,7 @@ from typing import Any
 
 from mcp.server import MCPServer
 
+from .api import BanxicoAPIError, SIEAPIClient
 from .catalog import CatalogError, list_sectors, list_tables, search, show
 
 MAX_SEARCH_RESULTS = 100
@@ -50,10 +51,16 @@ def _result(database_path: Path, manifest_path: Path, **payload: Any) -> dict[st
     return {"snapshot": _snapshot_metadata(database_path, manifest_path), **payload}
 
 
-def create_server(database_path: Path, manifest_path: Path | None = None) -> MCPServer:
-    """Create a server whose tools only read from one chosen SQLite snapshot."""
+def create_server(
+    database_path: Path,
+    manifest_path: Path | None = None,
+    *,
+    api_client: SIEAPIClient | None = None,
+) -> MCPServer:
+    """Create a local catalog server with optional token-backed live data tools."""
     snapshot = database_path.resolve()
     manifest = (manifest_path or snapshot.with_name("manifest.json")).resolve()
+    client = api_client or SIEAPIClient()
     mcp = MCPServer("Banxico SIE Catalog")
 
     @mcp.tool()
@@ -96,6 +103,40 @@ def create_server(database_path: Path, manifest_path: Path | None = None) -> MCP
     def get_tables(sector: str | None = None) -> dict[str, Any]:
         """List catalog tables, optionally filtering by their exact sector name."""
         return _result(snapshot, manifest, tables=list_tables(snapshot, sector=sector))
+
+    @mcp.tool()
+    def get_latest_observation(series_id: str) -> dict[str, Any]:
+        """Get the latest API observation for a catalog series. Requires local BMX_TOKEN."""
+        record = show(snapshot, series_id)
+        if record is None:
+            raise ValueError(f"No catalog record found for series ID: {series_id}")
+        try:
+            live_data = client.latest_observation(series_id)
+        except BanxicoAPIError as error:
+            return _result(
+                snapshot,
+                manifest,
+                catalog_record=record,
+                error={"code": "live_data_unavailable", "message": str(error)},
+            )
+        return _result(snapshot, manifest, catalog_record=record, live_data=live_data)
+
+    @mcp.tool()
+    def get_observations(series_id: str, start_date: str, end_date: str) -> dict[str, Any]:
+        """Get API observations in an inclusive YYYY-MM-DD range. Requires local BMX_TOKEN."""
+        record = show(snapshot, series_id)
+        if record is None:
+            raise ValueError(f"No catalog record found for series ID: {series_id}")
+        try:
+            live_data = client.observations(series_id, start_date, end_date)
+        except BanxicoAPIError as error:
+            return _result(
+                snapshot,
+                manifest,
+                catalog_record=record,
+                error={"code": "live_data_unavailable", "message": str(error)},
+            )
+        return _result(snapshot, manifest, catalog_record=record, live_data=live_data)
 
     return mcp
 

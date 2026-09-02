@@ -90,19 +90,66 @@ its own validation timestamp. It never writes the token to a snapshot or report.
 
 ## Serve a snapshot over MCP
 
-The optional MCP server exposes only the chosen local SQLite snapshot: it never
-crawls SIE and does not use a Banxico token. Install the project, then configure
-an MCP host to run the following command with an absolute snapshot path:
+### Local setup with Python
+
+Create an isolated environment and install the released server version:
 
 ```bash
-banxico-sie-catalog-mcp --database /absolute/path/to/catalog.sqlite
+mkdir banxico-sie-mcp && cd banxico-sie-mcp
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install "git+https://github.com/guadaloop-07/banxico-sie-catalog.git@v0.1.0"
 ```
 
-It provides four read-only tools with stable object responses: `search_series`,
-`get_series`, `get_sectors`, and `get_tables`. Every response includes snapshot
+Download and unpack the catalog release (or download the ZIP from the release page in a browser):
+
+```bash
+gh release download v0.1.0 --repo guadaloop-07/banxico-sie-catalog --dir downloads
+unzip downloads/banxico-sie-catalog-v0.1.0-snapshot.zip -d snapshot
+```
+
+Start the local read-only server with the absolute SQLite path:
+
+```bash
+banxico-sie-catalog-mcp --database "$(pwd)/snapshot/catalog.sqlite"
+```
+
+For a copy-paste Codex configuration, including connection validation and the
+optional live-observations setup, see [Connect the local catalog to Codex](docs/codex-mcp.md).
+
+No Banxico token is needed at runtime: the server only reads the downloaded catalog. Keep the virtual environment and snapshot directory together so upgrading is just a matter of replacing `snapshot/` with a newer validated release.
+
+The optional MCP server always exposes the four local catalog tools without a
+token: `search_series`, `get_series`, `get_sectors`, and `get_tables`. It also
+registers two read-only tools for live SIE observations; invoking either one
+requires `BMX_TOKEN`. Every response includes snapshot
 metadata from `manifest.json`; when `provenance.json` is beside the manifest,
 that workflow provenance is included too. Pass `--manifest` when the manifest
 is stored elsewhere.
+
+### Consult live observations with your Banxico token
+
+The catalog tools remain available without a token and without network access.
+To retrieve the latest value or an observation range from the SIE API, set
+`BMX_TOKEN` in the environment that starts the MCP server. Without it, a live
+tool returns an actionable configuration error. Do not put the token in an MCP
+tool call, a project configuration file, or a snapshot.
+
+```bash
+export BMX_TOKEN="your-secret-token"
+banxico-sie-catalog-mcp --database /absolute/path/to/catalog.sqlite
+```
+
+The MCP server first confirms that the requested ID exists in the local catalog,
+then exposes two additional read-only tools:
+
+- `get_latest_observation(series_id)` returns the latest published observation.
+- `get_observations(series_id, start_date, end_date)` returns an inclusive date
+  range; dates must use `YYYY-MM-DD`.
+
+Each live response includes the catalog record, the API response title, the
+requested range when applicable, and a UTC query timestamp. Values are preserved
+as published by SIE, including non-numeric markers such as `N/E`.
 
 ## Development
 

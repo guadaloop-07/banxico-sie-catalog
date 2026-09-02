@@ -1,0 +1,16 @@
+# Copy this table into ~/.codex/config.toml, then replace every absolute path.
+# Do not use ~ or a relative path: Codex starts MCP servers independently.
+
+[mcp_servers.banxico_sie_catalog]
+command = "/absolute/path/to/banxico-sie-mcp/.venv/bin/banxico-sie-catalog-mcp"
+args = [
+  "--database",
+  "/absolute/path/to/banxico-sie-mcp/snapshot/catalog.sqlite",
+]
+cwd = "/absolute/path/to/banxico-sie-mcp"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+
+# Optional: uncomment only to enable the two live SIE observation tools.
+# BMX_TOKEN must already be set in the environment that starts Codex.
+# env_vars = ["BMX_TOKEN"]
