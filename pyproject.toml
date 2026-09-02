@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "banxico-sie-catalog"
-version = "0.1.0"
+version = "0.1.1rc1"
 description = "Build versioned catalogs of Banco de México SIE time series."
 readme = "README.md"
 requires-python = ">=3.11"
