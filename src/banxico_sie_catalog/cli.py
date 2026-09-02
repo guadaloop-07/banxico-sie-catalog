@@ -9,6 +9,7 @@ from .api import BanxicoAPIError, SIEAPIClient
 from .catalog import CatalogError, search, show
 from .crawler import CrawlError, SIECrawler
 from .export import write_snapshot
+from .installer import DEFAULT_REPOSITORY, CatalogInstallError, install_catalog_release
 from .report import write_crawl_report
 from .validation import SnapshotValidationError
 
@@ -83,6 +84,13 @@ def main() -> int:
         "--delay", type=float, default=1.0, help="seconds between API batches"
     )
 
+    install_parser = subparsers.add_parser(
+        "install-catalog", help="download, verify, and validate a released local catalog"
+    )
+    install_parser.add_argument("release", help="GitHub release tag, for example v0.1.0")
+    install_parser.add_argument("--output-dir", type=Path, default=Path("snapshot"))
+    install_parser.add_argument("--repository", default=DEFAULT_REPOSITORY)
+
     args = parser.parse_args()
     if args.command == "crawl":
         crawler = SIECrawler(
@@ -111,6 +119,10 @@ def main() -> int:
         )
         return 0
     try:
+        if args.command == "install-catalog":
+            result = install_catalog_release(args.repository, args.release, args.output_dir)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
         if args.command == "enrich":
             if args.delay < 0:
                 parser.error("--delay must be non-negative")
@@ -149,7 +161,7 @@ def main() -> int:
             for field, value in record.items():
                 print(f"{field}: {value}")
         return 0
-    except (BanxicoAPIError, CatalogError) as error:
+    except (BanxicoAPIError, CatalogError, CatalogInstallError) as error:
         print(error)
         return 2
 

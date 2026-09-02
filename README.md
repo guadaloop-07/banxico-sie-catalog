@@ -101,11 +101,13 @@ source .venv/bin/activate
 python -m pip install "git+https://github.com/guadaloop-07/banxico-sie-catalog.git@v0.1.0"
 ```
 
-Download and unpack the catalog release (or download the ZIP from the release page in a browser):
+Download, checksum-verify, and validate a selected catalog release. The command
+does not need `BMX_TOKEN`; it verifies the SHA-256 checksum published by GitHub,
+checks the required snapshot files, and performs a read-only catalog query before
+installing it. It refuses to overwrite an existing directory.
 
 ```bash
-gh release download v0.1.0 --repo guadaloop-07/banxico-sie-catalog --dir downloads
-unzip downloads/banxico-sie-catalog-v0.1.0-snapshot.zip -d snapshot
+banxico-sie-catalog install-catalog v0.1.0 --output-dir snapshot
 ```
 
 Start the local read-only server with the absolute SQLite path:
