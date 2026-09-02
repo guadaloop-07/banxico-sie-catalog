@@ -20,10 +20,11 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
 
+      - run: pytest
+
   test:
     name: test
     needs: python-tests
     runs-on: ubuntu-latest
     steps:
       - run: true
-      - run: pytest
