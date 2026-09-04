@@ -11,6 +11,7 @@ from mcp.server import MCPServer
 
 from .api import BanxicoAPIError, SIEAPIClient
 from .catalog import CatalogError, list_sectors, list_tables, search, show
+from .secrets import SecureTokenError, get_token
 
 MAX_SEARCH_RESULTS = 100
 
@@ -60,7 +61,12 @@ def create_server(
     """Create a local catalog server with optional token-backed live data tools."""
     snapshot = database_path.resolve()
     manifest = (manifest_path or snapshot.with_name("manifest.json")).resolve()
-    client = api_client or SIEAPIClient()
+    if api_client is None:
+        try:
+            api_client = SIEAPIClient(token=get_token())
+        except SecureTokenError:
+            api_client = SIEAPIClient()
+    client = api_client
     mcp = MCPServer("Banxico SIE Catalog")
 
     @mcp.tool()
