@@ -11,6 +11,5 @@ cwd = "/absolute/path/to/banxico-sie-mcp"
 startup_timeout_sec = 20
 tool_timeout_sec = 60
 
-# Optional: uncomment only to enable the two live SIE observation tools.
-# BMX_TOKEN must already be set in the environment that starts Codex.
-# env_vars = ["BMX_TOKEN"]
+# Live SIE observation tools retrieve the personal Banxico token from the
+# system keyring. Store or replace it with: banxico-sie-catalog update-token

@@ -1,17 +1,99 @@
 # banxico-sie-catalog
 
-A small, reproducible pipeline that builds a searchable catalog of Banco de México’s SIE time series by crawling its public information structure, normalizing series metadata, and producing versioned SQLite and JSON snapshots for downstream tools and MCP servers.
+A local, reproducible catalog of Banco de México SIE series, with an MCP server
+for searching a verified snapshot and consulting live observations from the SIE
+API. It produces and consumes versioned SQLite and JSON snapshots.
 
 ## Status
 
-This is the first, catalog-only phase. It crawls the public SIE hierarchy (sector →
-table → series), normalizes the discovered metadata, and writes portable JSON and
-SQLite snapshots. It does not download observations and it does not require a
-Banxico API token.
+The published desktop experience installs a verified local catalog, registers a
+local stdio MCP server with Codex, and supports both offline catalog queries and
+live SIE observations. Catalog tools work from the local snapshot; live tools
+use your personal Banxico token.
 
-## Quick start
+## Codex quick start
 
-Requires Python 3.11 or newer.
+Requirements:
+
+- Python 3.11 or newer
+- Codex installed and available as `codex`
+- A desktop Linux session with an available, unlocked system keyring
+- A personal Banxico API token
+
+Install the published wheel, then run the guided setup:
+
+```bash
+python -m pip install \
+  "https://github.com/guadaloop-07/banxico-sie-catalog/releases/download/v0.1.1/banxico_sie_catalog-0.1.1-py3-none-any.whl"
+
+banxico-sie-catalog setup-codex --release v0.1.1
+```
+
+Setup securely prompts for and validates your token, stores it in the system
+keyring, downloads and validates the `v0.1.1` snapshot, registers the MCP with
+Codex, and offers to enable monthly catalog updates. Start a new Codex session,
+use `/mcp` to confirm `banxico_sie_catalog` is connected, then ask, for example:
+
+> Use `search_series` to find "tipo de cambio" and show the first three results.
+
+The MCP provides `search_series`, `get_series`, `get_sectors`, and `get_tables`
+against the local snapshot, plus `get_latest_observation` and
+`get_observations` for live SIE data. The live tools first verify that the
+series is in the local catalog.
+
+Your token is stored in the system keyring. Do not put it in `config.toml`, MCP
+tool calls, `.env` files, snapshots, reports, or source control.
+
+### Maintain the desktop installation
+
+```bash
+# Report keyring, token, snapshot, and update-state availability without revealing the token.
+banxico-sie-catalog doctor
+
+# Securely replace the stored Banxico token.
+banxico-sie-catalog update-token
+
+# Download, verify, and atomically activate a release now.
+banxico-sie-catalog update-now --release v0.1.1
+
+# Enable the per-user systemd timer for monthly verified updates.
+banxico-sie-catalog updates-monthly --release v0.1.1
+```
+
+`updates-monthly` requires Linux with `systemd --user`; it is a timer, not a
+continuously running process. Use `doctor` after setup or an update to diagnose
+non-secret installation state.
+
+## Advanced: manual MCP installation
+
+Use this route when you need to choose the installation directory or register
+the server yourself. It is not required for the standard Codex flow above.
+
+```bash
+mkdir banxico-sie-mcp && cd banxico-sie-mcp
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install \
+  "https://github.com/guadaloop-07/banxico-sie-catalog/releases/download/v0.1.1/banxico_sie_catalog-0.1.1-py3-none-any.whl"
+banxico-sie-catalog install-catalog v0.1.1 --output-dir snapshot
+```
+
+Register the server with absolute paths:
+
+```bash
+codex mcp add banxico_sie_catalog -- \
+  "$(pwd)/.venv/bin/banxico-sie-catalog-mcp" \
+  --database "$(pwd)/snapshot/catalog.sqlite"
+```
+
+For live observations in a manual installation, first run
+`banxico-sie-catalog update-token`; the MCP reads the stored secret from the
+system keyring. See [the detailed Codex MCP guide](docs/codex-mcp.md).
+
+## Build or refresh a catalog (development)
+
+To crawl the public SIE hierarchy (sector → table → series) and produce a new
+snapshot from source:
 
 ```bash
 python -m venv .venv
@@ -74,85 +156,6 @@ banxico-sie-catalog show SF43718 --database data/catalog.sqlite --json
 `--series-id`. It exits with status 1 when no records match and status 2 when
 the snapshot is missing or cannot be queried.
 
-## Validate known series through the API
-
-API enrichment is optional and never changes scraped catalog provenance. Supply
-the API token only through the `BMX_TOKEN` environment variable, then validate
-explicit known IDs in batches of at most 20:
-
-```bash
-export BMX_TOKEN="your-secret-token"
-banxico-sie-catalog enrich SF43718 SF46410 --output data/api-validation.json
-```
-
-The API-only report records returned metadata, invalid IDs, failed batches, and
-its own validation timestamp. It never writes the token to a snapshot or report.
-
-## Serve a snapshot over MCP
-
-### Local setup with Python
-
-Create an isolated environment and install the released server version:
-
-```bash
-mkdir banxico-sie-mcp && cd banxico-sie-mcp
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install "git+https://github.com/guadaloop-07/banxico-sie-catalog.git@v0.1.0"
-```
-
-Download, checksum-verify, and validate a selected catalog release. The command
-does not need `BMX_TOKEN`; it verifies the SHA-256 checksum published by GitHub,
-checks the required snapshot files, and performs a read-only catalog query before
-installing it. It refuses to overwrite an existing directory.
-
-```bash
-banxico-sie-catalog install-catalog v0.1.0 --output-dir snapshot
-```
-
-Start the local read-only server with the absolute SQLite path:
-
-```bash
-banxico-sie-catalog-mcp --database "$(pwd)/snapshot/catalog.sqlite"
-```
-
-For a copy-paste Codex configuration, including connection validation and the
-optional live-observations setup, see [Connect the local catalog to Codex](docs/codex-mcp.md).
-
-No Banxico token is needed at runtime: the server only reads the downloaded catalog. Keep the virtual environment and snapshot directory together so upgrading is just a matter of replacing `snapshot/` with a newer validated release.
-
-The optional MCP server always exposes the four local catalog tools without a
-token: `search_series`, `get_series`, `get_sectors`, and `get_tables`. It also
-registers two read-only tools for live SIE observations; invoking either one
-requires `BMX_TOKEN`. Every response includes snapshot
-metadata from `manifest.json`; when `provenance.json` is beside the manifest,
-that workflow provenance is included too. Pass `--manifest` when the manifest
-is stored elsewhere.
-
-### Consult live observations with your Banxico token
-
-The catalog tools remain available without a token and without network access.
-To retrieve the latest value or an observation range from the SIE API, set
-`BMX_TOKEN` in the environment that starts the MCP server. Without it, a live
-tool returns an actionable configuration error. Do not put the token in an MCP
-tool call, a project configuration file, or a snapshot.
-
-```bash
-export BMX_TOKEN="your-secret-token"
-banxico-sie-catalog-mcp --database /absolute/path/to/catalog.sqlite
-```
-
-The MCP server first confirms that the requested ID exists in the local catalog,
-then exposes two additional read-only tools:
-
-- `get_latest_observation(series_id)` returns the latest published observation.
-- `get_observations(series_id, start_date, end_date)` returns an inclusive date
-  range; dates must use `YYYY-MM-DD`.
-
-Each live response includes the catalog record, the API response title, the
-requested range when applicable, and a UTC query timestamp. Values are preserved
-as published by SIE, including non-numeric markers such as `N/E`.
-
 ## Development
 
 ```bash
@@ -185,15 +188,3 @@ complete portal catalog.
   snapshot on a scheduled cadence (for example, monthly).
 - The documented collection endpoint is currently unavailable in the deployed
   SIE API. Series-specific API routes may be used later to validate known IDs.
-
-
-## One-command desktop setup
-
-For a standard graphical Linux desktop, install the package and run:
-
-    banxico-sie-catalog setup-codex --release v0.1.0
-
-The installer securely prompts for and validates the Banxico token, stores it in
-the system keyring, downloads a verified catalog snapshot, registers the MCP in
-Codex, and asks whether to enable monthly updates. It may be run again to repair
-an existing registration; the token is never written to Codex configuration.
