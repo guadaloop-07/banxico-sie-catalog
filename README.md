@@ -185,3 +185,15 @@ complete portal catalog.
   snapshot on a scheduled cadence (for example, monthly).
 - The documented collection endpoint is currently unavailable in the deployed
   SIE API. Series-specific API routes may be used later to validate known IDs.
+
+
+## One-command desktop setup
+
+For a standard graphical Linux desktop, install the package and run:
+
+    banxico-sie-catalog setup-codex --release v0.1.0
+
+The installer securely prompts for and validates the Banxico token, stores it in
+the system keyring, downloads a verified catalog snapshot, registers the MCP in
+Codex, and asks whether to enable monthly updates. It may be run again to repair
+an existing registration; the token is never written to Codex configuration.

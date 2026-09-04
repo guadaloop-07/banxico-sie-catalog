@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -8,9 +9,18 @@ from pathlib import Path
 from .api import BanxicoAPIError, SIEAPIClient
 from .catalog import CatalogError, search, show
 from .crawler import CrawlError, SIECrawler
+from .desktop import (
+    DesktopSetupError,
+    default_install_dir,
+    doctor,
+    schedule_monthly_updates,
+    setup_codex,
+    update_now,
+)
 from .export import write_snapshot
 from .installer import DEFAULT_REPOSITORY, CatalogInstallError, install_catalog_release
 from .report import write_crawl_report
+from .secrets import SecureTokenError, set_token
 from .validation import SnapshotValidationError
 
 
@@ -91,6 +101,33 @@ def main() -> int:
     install_parser.add_argument("--output-dir", type=Path, default=Path("snapshot"))
     install_parser.add_argument("--repository", default=DEFAULT_REPOSITORY)
 
+    setup_parser = subparsers.add_parser(
+        "setup-codex", help="configure Codex and live indicator access"
+    )
+    setup_parser.add_argument("--install-dir", type=Path, default=default_install_dir())
+    setup_parser.add_argument("--release", required=True)
+    setup_parser.add_argument("--repository", default=DEFAULT_REPOSITORY)
+    setup_parser.add_argument("--no-monthly-updates", action="store_true")
+    update_parser = subparsers.add_parser(
+        "update-now", help="download and activate a verified catalog release"
+    )
+    update_parser.add_argument("--install-dir", type=Path, default=default_install_dir())
+    update_parser.add_argument("--release", required=True)
+    update_parser.add_argument("--repository", default=DEFAULT_REPOSITORY)
+
+    schedule_parser = subparsers.add_parser(
+        "updates-monthly", help="schedule monthly catalog updates"
+    )
+    schedule_parser.add_argument("--install-dir", type=Path, default=default_install_dir())
+    schedule_parser.add_argument("--release", required=True)
+    schedule_parser.add_argument("--repository", default=DEFAULT_REPOSITORY)
+
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="report non-secret desktop installation status"
+    )
+    doctor_parser.add_argument("--install-dir", type=Path, default=default_install_dir())
+    subparsers.add_parser("update-token", help="replace the token stored in the system keyring")
+
     args = parser.parse_args()
     if args.command == "crawl":
         crawler = SIECrawler(
@@ -122,6 +159,27 @@ def main() -> int:
         if args.command == "install-catalog":
             result = install_catalog_release(args.repository, args.release, args.output_dir)
             print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "setup-codex":
+            answer = input("Enable monthly catalog updates? [Y/n] ").strip().lower()
+            schedule = not args.no_monthly_updates and answer not in {"n", "no"}
+            result = setup_codex(args.install_dir, args.release, schedule, args.repository)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "update-now":
+            result = update_now(args.install_dir, args.release, args.repository)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "updates-monthly":
+            schedule_monthly_updates(args.install_dir, args.release, args.repository)
+            print("Monthly catalog updates are enabled.")
+            return 0
+        if args.command == "doctor":
+            print(json.dumps(doctor(args.install_dir), ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "update-token":
+            set_token(getpass.getpass("Banxico token: "))
+            print("Token stored securely in the system keyring.")
             return 0
         if args.command == "enrich":
             if args.delay < 0:
@@ -161,7 +219,13 @@ def main() -> int:
             for field, value in record.items():
                 print(f"{field}: {value}")
         return 0
-    except (BanxicoAPIError, CatalogError, CatalogInstallError) as error:
+    except (
+        BanxicoAPIError,
+        CatalogError,
+        CatalogInstallError,
+        DesktopSetupError,
+        SecureTokenError,
+    ) as error:
         print(error)
         return 2
 
